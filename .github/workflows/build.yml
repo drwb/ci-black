@@ -1,0 +1,132 @@
+name: build
+
+# Reusable test-gated build for drwb Docker home-lab apps.
+#
+# Pattern:  test (PR + push) -> build (needs: test, main-push only).
+# Because `build` has `needs: test` and only runs on a green main push, the image
+# tag `:latest` it publishes is, by definition, test-passed. The lab's existing
+# watchtower then pulls `:latest` — an inherently gated deploy, no LAN infra needed.
+#
+# A red test skips `build`, so `:latest` never moves. That IS the deploy gate.
+#
+# Callers include this as a thin one-job workflow, e.g.:
+#   jobs:
+#     pipeline:
+#       uses: drwb/ci-black/.github/workflows/build.yml@v1
+#       with: { image: <app-a>, test_command: "uv run pytest -q" }
+#       secrets: inherit
+#
+# Out of scope: Cloudflare Workers projects (they deploy on cloud runners directly).
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        description: "Short name -> ghcr.io/drwb/<image>. Use for single-image repos."
+        type: string
+        default: ""
+      images:
+        description: >-
+          JSON array of {name,dockerfile,context} for multi-image repos.
+          Overrides `image` when set. e.g.
+          '[{"name":"<app-d>","dockerfile":"Dockerfile","context":"."},
+            {"name":"<app-d>-tor","dockerfile":"deploy/Dockerfile.tor","context":"."}]'
+        type: string
+        default: ""
+      test_command:
+        description: "Test step (run after uv sync --frozen)."
+        type: string
+        default: "uv run pytest -q"
+      lint_command:
+        description: "Optional lint step; skipped when empty. e.g. 'uv run ruff check .'"
+        type: string
+        default: ""
+      dockerfile:
+        description: "Dockerfile path (single-image mode), relative to repo root."
+        type: string
+        default: "Dockerfile"
+      context:
+        description: "Build context (single-image mode)."
+        type: string
+        default: "."
+      platforms:
+        description: "Build platforms."
+        type: string
+        default: "linux/amd64"
+
+jobs:
+  # Runs on PRs and pushes — the branch-protection signal. Red here blocks build.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Lint
+        if: ${{ inputs.lint_command != '' }}
+        run: ${{ inputs.lint_command }}
+      - name: Test
+        run: ${{ inputs.test_command }}
+
+  # Normalises single-image vs multi-image inputs into one build matrix.
+  # Gated here: only main-push reaches build. PRs stop after `test`.
+  prep:
+    needs: test
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        env:
+          IMAGE: ${{ inputs.image }}
+          IMAGES: ${{ inputs.images }}
+          DOCKERFILE: ${{ inputs.dockerfile }}
+          CONTEXT: ${{ inputs.context }}
+        run: |
+          set -euo pipefail
+          if [ -n "$IMAGES" ]; then
+            matrix="$(printf '%s' "$IMAGES" | jq -c '{include: .}')"
+          elif [ -n "$IMAGE" ]; then
+            matrix="$(jq -cn --arg n "$IMAGE" --arg d "$DOCKERFILE" --arg c "$CONTEXT" \
+              '{include: [{name: $n, dockerfile: $d, context: $c}]}')"
+          else
+            echo "::error::Provide either 'image' or 'images' input."; exit 1
+          fi
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prep
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix: ${{ fromJSON(needs.prep.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/drwb/${{ matrix.name }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ inputs.platforms }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

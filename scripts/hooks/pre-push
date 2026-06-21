@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Pre-push hook: refuse direct pushes to main.
+#
+# Allowed:   pushing any non-main branch (feature branches, fixes, etc.)
+# Blocked:   pushing main directly, force-pushing anything, --no-verify bypass-by-design
+#
+# Bypass intentionally requires editing this file or removing the hook —
+# `--no-verify` skips the hook entirely, so we can't catch it here.
+# The defense for that is "don't type --no-verify."
+
+protected_branch="main"
+remote="$1"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    # remote_ref looks like "refs/heads/main"
+    if [[ "$remote_ref" == "refs/heads/$protected_branch" ]]; then
+        echo "✗ Direct push to '$protected_branch' is blocked." >&2
+        echo "  Open a PR instead:" >&2
+        echo "    git checkout -b fix/your-change" >&2
+        echo "    git push -u origin fix/your-change" >&2
+        echo "    gh pr create" >&2
+        exit 1
+    fi
+done
+
+exit 0
