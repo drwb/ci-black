@@ -7,6 +7,20 @@ repos (e.g. a future `ci-<other-env>`) if other environments ever need their own
 **Out of scope:** Cloudflare Workers projects (`<worker-template>*`, `<worker-app>`) — those deploy via
 `wrangler` on cloud runners and have no firewall problem.
 
+## Status
+
+Live since 2026-06-21. Adopted by every in-scope Docker home-lab app, each verified deploying its
+gated image near-immediately:
+
+| App | Notes |
+|-----|-------|
+| `<app-a>` | pilot |
+| `<app-b>` | |
+| `<app-d>` | multi-image (`<app-d>` + `<app-d>-tor`) |
+| `<app-c>` | converted from an on-host `local/` build → ghcr |
+
+See `DONE.md` for the build-out log and `TODO.md` for open work.
+
 ## The pattern
 
 ```
