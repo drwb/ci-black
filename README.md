@@ -74,6 +74,8 @@ Then delete the project's old `docker.yml` / standalone `pytest.yml`.
 | `lint_command` | `''` | optional; skipped when empty |
 | `dockerfile` / `context` | `Dockerfile` / `.` | single-image build inputs |
 | `platforms` | `linux/amd64` | build platforms |
+| `cache_paths` | `''` | optional extra paths cached in the `test` job (one per line), e.g. `~/.cache/ms-playwright` for browser tests |
+| `cache_key_files` | `uv.lock` | glob(s) whose hash keys that cache |
 
 Multi-image example (<app-d>):
 
@@ -102,6 +104,7 @@ watchtower restores it on the next pass.
 
 - `drwb` is a GitHub **User** (not an org). Cross-repo reuse requires this repo's
   Settings → Actions → "Access" = *Accessible from repositories owned by the user drwb*.
+- Runners are pinned to `ubuntu-24.04`, not `ubuntu-latest`: `latest` moved to Ubuntu 26.04 in Oct–Nov 2026, and tools that install OS packages (e.g. `playwright install --with-deps`) lag new Ubuntu releases. Bump deliberately.
 - Actions are pinned to major-version tags to match the rest of the lab; SHA-pinning is a possible
   future hardening for this shared trust root.
 - `main` is protected (see `.claude/settings.json` + `scripts/hooks/`). Change via PR.

@@ -53,16 +53,32 @@ on:
         description: "Build platforms."
         type: string
         default: "linux/amd64"
+      cache_paths:
+        description: >-
+          Optional extra paths to cache in the test job (one per line),
+          e.g. "~/.cache/ms-playwright" for browser tests. Skipped when empty.
+        type: string
+        default: ""
+      cache_key_files:
+        description: "Glob(s) whose hash keys the cache_paths cache (e.g. uv.lock, which pins tool versions)."
+        type: string
+        default: "uv.lock"
 
 jobs:
   # Runs on PRs and pushes — the branch-protection signal. Red here blocks build.
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
+      - name: Restore extra caches
+        if: ${{ inputs.cache_paths != '' }}
+        uses: actions/cache@v4
+        with:
+          path: ${{ inputs.cache_paths }}
+          key: ${{ runner.os }}-extra-${{ hashFiles(inputs.cache_key_files) }}
       - run: uv sync --frozen
       - name: Lint
         if: ${{ inputs.lint_command != '' }}
@@ -75,7 +91,7 @@ jobs:
   prep:
     needs: test
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.set.outputs.matrix }}
     steps:
@@ -99,7 +115,7 @@ jobs:
 
   build:
     needs: prep
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
