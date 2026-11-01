@@ -1,0 +1,11 @@
+# Keeps the SHA-pinned actions in build.yml current (weekly PR, versions grouped).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]

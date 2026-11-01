@@ -1,2 +1,12 @@
 .DS_Store
 *.bak
+
+# Local-only: Claude working files and notes never get published (safe-to-public skill)
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+.mcp.json
+TODO.md
+DONE.md
+.env
+.safe-to-public.local

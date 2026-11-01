@@ -19,8 +19,6 @@ gated image near-immediately:
 | `<app-d>` | multi-image (`<app-d>` + `<app-d>-tor`) |
 | `<app-c>` | converted from an on-host `local/` build → ghcr |
 
-See `DONE.md` for the build-out log and `TODO.md` for open work.
-
 ## The pattern
 
 ```
@@ -29,7 +27,7 @@ push to main (drwb/<app>)
        ├─ test   (PR + push)            uv sync --frozen → [lint] → test_command
        └─ build  (needs: test, main)    push ghcr  :latest + :sha     ← only ever runs green
                                                     │
-   <docker-host> watchtower ── pulls :latest on digest change ──▶ recreate <app>
+   docker-host watchtower ── pulls :latest on digest change ──▶ recreate <app>
 ```
 
 **Why there's no deploy job.** "Deploy only if tests pass" is enforced at *publish* time: `build`
@@ -92,8 +90,8 @@ Multi-image example (<app-d>):
 
 ## Near-immediate delivery (LAN side)
 
-A dedicated `watchtower-ci` instance on <docker-host> (`WATCHTOWER_SCOPE=ci`, short interval) watches only
-containers labelled `com.centurylinklabs.watchtower.scope=ci`; the main <docker-host> watchtower runs
+A dedicated `watchtower-ci` instance on the docker host (`WATCHTOWER_SCOPE=ci`, short interval) watches only
+containers labelled `com.centurylinklabs.watchtower.scope=ci`; the main watchtower on that host runs
 `WATCHTOWER_SCOPE=none` so it manages everything else on the lab's normal 03:00 cadence. Add the
 `scope=ci` label to a stack's compose to opt it into fast delivery. See the stacks repo and the
 runbook.
@@ -108,6 +106,6 @@ watchtower restores it on the next pass.
 - `drwb` is a GitHub **User** (not an org). Cross-repo reuse requires this repo's
   Settings → Actions → "Access" = *Accessible from repositories owned by the user drwb*.
 - Runners are pinned to `ubuntu-24.04`, not `ubuntu-latest`: `latest` moved to Ubuntu 26.04 in Oct–Nov 2026, and tools that install OS packages (e.g. `playwright install --with-deps`) lag new Ubuntu releases. Bump deliberately.
-- Actions are pinned to major-version tags to match the rest of the lab; SHA-pinning is a possible
-  future hardening for this shared trust root.
-- `main` is protected (see `.claude/settings.json` + `scripts/hooks/`). Change via PR.
+- Every action is pinned to a commit SHA (the version is in the comment next to it): this workflow is
+  a shared trust root for every caller.
+- `main` is protected by the pre-push hook in `scripts/hooks/` (`bash scripts/hooks/install.sh` once). Change via PR.
