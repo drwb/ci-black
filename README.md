@@ -76,6 +76,7 @@ Then delete the project's old `docker.yml` / standalone `pytest.yml`.
 | `platforms` | `linux/amd64` | build platforms |
 | `cache_paths` | `''` | optional extra paths cached in the `test` job (one per line), e.g. `~/.cache/ms-playwright` for browser tests |
 | `cache_key_files` | `uv.lock` | glob(s) whose hash keys that cache |
+| `extra_branches` | `''` | optional comma-separated branches (no spaces) that also publish on push, tagged `:<branch>` (never `:latest`); e.g. `dev` for a dev environment. The caller's `on.push.branches` must list them too |
 
 Multi-image example (<app-d>):
 

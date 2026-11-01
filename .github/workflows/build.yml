@@ -3,6 +3,9 @@ name: build
 # Reusable test-gated build for drwb Docker home-lab apps.
 #
 # Pattern:  test (PR + push) -> build (needs: test, main-push only).
+# Optional `extra_branches` (e.g. "dev") also builds on a push to those branches,
+# tagged with the branch name (`:dev`) instead of `:latest` — a second, separate
+# environment that a watchtower-managed container can follow.
 # Because `build` has `needs: test` and only runs on a green main push, the image
 # tag `:latest` it publishes is, by definition, test-passed. The lab's existing
 # watchtower then pulls `:latest` — an inherently gated deploy, no LAN infra needed.
@@ -63,6 +66,12 @@ on:
         description: "Glob(s) whose hash keys the cache_paths cache (e.g. uv.lock, which pins tool versions)."
         type: string
         default: "uv.lock"
+      extra_branches:
+        description: >-
+          Optional comma-separated branches (no spaces) that also publish on push,
+          tagged :<branch> (never :latest). e.g. "dev". Empty = main only.
+        type: string
+        default: ""
 
 jobs:
   # Runs on PRs and pushes — the branch-protection signal. Red here blocks build.
@@ -87,10 +96,14 @@ jobs:
         run: ${{ inputs.test_command }}
 
   # Normalises single-image vs multi-image inputs into one build matrix.
-  # Gated here: only main-push reaches build. PRs stop after `test`.
+  # Gated here: only a push to main (or to an `extra_branches` branch) reaches
+  # build. PRs stop after `test`.
   prep:
     needs: test
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    if: >-
+      ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' ||
+      (inputs.extra_branches != '' &&
+       contains(format(',{0},', inputs.extra_branches), format(',{0},', github.ref_name)))) }}
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.set.outputs.matrix }}
@@ -136,6 +149,7 @@ jobs:
           tags: |
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch,enable=${{ github.ref != 'refs/heads/main' }}
       - uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
