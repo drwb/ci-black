@@ -1,23 +1,10 @@
 # ci-black
 
-Reusable GitHub Actions CI/CD for **drwb's Docker home-lab apps** (the home network —
-`ghcr.io/drwb/*` images running on the docker hosts). `ci-<env>` naming leaves room for sibling
-repos (e.g. a future `ci-<other-env>`) if other environments ever need their own pipeline.
+Reusable GitHub Actions CI/CD for drwb's self-hosted Docker apps (`ghcr.io/drwb/*` images pulled by a
+watchtower-managed host). `ci-<env>` naming leaves room for sibling repos if another environment ever
+needs its own pipeline.
 
-**Out of scope:** Cloudflare Workers projects (`<worker-template>*`, `<worker-app>`) — those deploy via
-`wrangler` on cloud runners and have no firewall problem.
-
-## Status
-
-Live since 2026-06-21. Adopted by every in-scope Docker home-lab app, each verified deploying its
-gated image near-immediately:
-
-| App | Notes |
-|-----|-------|
-| `<app-a>` | pilot |
-| `<app-b>` | |
-| `<app-d>` | multi-image (`<app-d>` + `<app-d>-tor`) |
-| `<app-c>` | converted from an on-host `local/` build → ghcr |
+**Out of scope:** Cloudflare Workers projects, which deploy via `wrangler` on cloud runners.
 
 ## The pattern
 
@@ -78,13 +65,13 @@ Then delete the project's old `docker.yml` / standalone `pytest.yml`.
 
 The build also passes `GIT_SHA=<commit>` as a Docker build argument. A Dockerfile that declares `ARG GIT_SHA` can bake it in (e.g. `ENV APP_BUILD=$GIT_SHA`) and report it from a health endpoint, so a post-deploy check can wait for exactly that build instead of guessing. Dockerfiles that don't declare it just get a BuildKit warning.
 
-Multi-image example (<app-d>):
+Multi-image example:
 
 ```yaml
     with:
       images: >-
-        [{"name":"<app-d>","dockerfile":"Dockerfile","context":"."},
-         {"name":"<app-d>-tor","dockerfile":"deploy/Dockerfile.tor","context":"."}]
+        [{"name":"myapp","dockerfile":"Dockerfile","context":"."},
+         {"name":"myapp-tor","dockerfile":"deploy/Dockerfile.tor","context":"."}]
       test_command: 'uv run pytest -q -m "not integration"'
 ```
 
@@ -92,9 +79,8 @@ Multi-image example (<app-d>):
 
 A dedicated `watchtower-ci` instance on the docker host (`WATCHTOWER_SCOPE=ci`, short interval) watches only
 containers labelled `com.centurylinklabs.watchtower.scope=ci`; the main watchtower on that host runs
-`WATCHTOWER_SCOPE=none` so it manages everything else on the lab's normal 03:00 cadence. Add the
-`scope=ci` label to a stack's compose to opt it into fast delivery. See the stacks repo and the
-runbook.
+`WATCHTOWER_SCOPE=none` so it manages everything else on its normal nightly cadence. Add the `scope=ci` label to a
+stack's compose to opt it into fast delivery.
 
 ## Rollback
 
@@ -105,7 +91,8 @@ watchtower restores it on the next pass.
 
 - `drwb` is a GitHub **User** (not an org). Cross-repo reuse requires this repo's
   Settings → Actions → "Access" = *Accessible from repositories owned by the user drwb*.
-- Runners are pinned to `ubuntu-24.04`, not `ubuntu-latest`: `latest` moved to Ubuntu 26.04 in Oct–Nov 2026, and tools that install OS packages (e.g. `playwright install --with-deps`) lag new Ubuntu releases. Bump deliberately.
+- Runners are pinned to a specific image version, not `-latest`: a new `latest` image can run ahead of
+  tools that install OS packages (e.g. `playwright install --with-deps`). Bump deliberately.
 - Every action is pinned to a commit SHA (the version is in the comment next to it): this workflow is
   a shared trust root for every caller.
 - `main` is protected by the pre-push hook in `scripts/hooks/` (`bash scripts/hooks/install.sh` once). Change via PR.

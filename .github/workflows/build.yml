@@ -1,6 +1,6 @@
 name: build
 
-# Reusable test-gated build for drwb Docker home-lab apps.
+# Reusable test-gated build for drwb's self-hosted Docker apps.
 #
 # Pattern:  test (PR + push) -> build (needs: test, main-push only).
 # Optional `extra_branches` (e.g. "dev") also builds on a push to those branches,
@@ -16,7 +16,7 @@ name: build
 #   jobs:
 #     pipeline:
 #       uses: drwb/ci-black/.github/workflows/build.yml@v1
-#       with: { image: <app-a>, test_command: "uv run pytest -q" }
+#       with: { image: myapp, test_command: "uv run pytest -q" }
 #       secrets: inherit
 #
 # Out of scope: Cloudflare Workers projects (they deploy on cloud runners directly).
@@ -32,8 +32,8 @@ on:
         description: >-
           JSON array of {name,dockerfile,context} for multi-image repos.
           Overrides `image` when set. e.g.
-          '[{"name":"<app-d>","dockerfile":"Dockerfile","context":"."},
-            {"name":"<app-d>-tor","dockerfile":"deploy/Dockerfile.tor","context":"."}]'
+          '[{"name":"myapp","dockerfile":"Dockerfile","context":"."},
+            {"name":"myapp-tor","dockerfile":"deploy/Dockerfile.tor","context":"."}]'
         type: string
         default: ""
       test_command:
