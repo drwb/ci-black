@@ -78,6 +78,8 @@ Then delete the project's old `docker.yml` / standalone `pytest.yml`.
 | `cache_key_files` | `uv.lock` | glob(s) whose hash keys that cache |
 | `extra_branches` | `''` | optional comma-separated branches (no spaces) that also publish on push, tagged `:<branch>` (never `:latest`); e.g. `dev` for a dev environment. The caller's `on.push.branches` must list them too |
 
+The build also passes `GIT_SHA=<commit>` as a Docker build argument. A Dockerfile that declares `ARG GIT_SHA` can bake it in (e.g. `ENV APP_BUILD=$GIT_SHA`) and report it from a health endpoint, so a post-deploy check can wait for exactly that build instead of guessing. Dockerfiles that don't declare it just get a BuildKit warning.
+
 Multi-image example (<app-d>):
 
 ```yaml

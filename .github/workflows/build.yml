@@ -158,5 +158,11 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # The commit being built, for Dockerfiles that declare `ARG GIT_SHA`
+          # (e.g. to report it from a health endpoint so a post-deploy check can
+          # wait for exactly this build). Unused by a Dockerfile = a BuildKit
+          # warning, nothing more.
+          build-args: |
+            GIT_SHA=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
