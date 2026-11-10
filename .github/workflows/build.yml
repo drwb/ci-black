@@ -72,6 +72,21 @@ on:
           tagged :<branch> (never :latest). e.g. "dev". Empty = main only.
         type: string
         default: ""
+      version_from_base:
+        description: >-
+          Overlay images (single-image mode): also tag main builds with the upstream
+          version read from the Dockerfile's `ARG BASE=<image>:<tag>` line, minus a
+          leading `v` (ARG BASE=foo:v1.3.5 -> :1.3.5), so an update checker can compare
+          the overlay against newer upstream releases.
+        type: boolean
+        default: false
+      build_on_pr:
+        description: >-
+          Also `docker build` (no push) in the test job (single-image mode). Use when the
+          Dockerfile itself is a gate — e.g. an overlay that patches its base and fails the
+          build when the patch no longer applies — so a PR that breaks it goes red BEFORE merge.
+        type: boolean
+        default: false
 
 jobs:
   # Runs on PRs and pushes — the branch-protection signal. Red here blocks build.
@@ -94,6 +109,12 @@ jobs:
         run: ${{ inputs.lint_command }}
       - name: Test
         run: ${{ inputs.test_command }}
+      - name: Build image (no push)
+        if: ${{ inputs.build_on_pr }}
+        env:
+          DOCKERFILE: ${{ inputs.dockerfile }}
+          CONTEXT: ${{ inputs.context }}
+        run: docker build -f "$DOCKERFILE" "$CONTEXT"
 
   # Normalises single-image vs multi-image inputs into one build matrix.
   # Gated here: only a push to main (or to an `extra_branches` branch) reaches
@@ -142,6 +163,21 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upstream version from ARG BASE
+        id: ver
+        if: ${{ inputs.version_from_base }}
+        env:
+          DOCKERFILE: ${{ matrix.dockerfile }}
+        run: |
+          set -euo pipefail
+          base="$(grep -m1 -E '^ARG BASE=' "$DOCKERFILE" | cut -d= -f2-)"
+          base="${base%%@*}"            # drop any @sha256 pin
+          tag="${base##*:}"
+          tag="${tag#v}"
+          if [[ "$base" != *:* || ! "$tag" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+            echo "::error::version_from_base: no numeric tag in ARG BASE ($base)"; exit 1
+          fi
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
       - uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
         id: meta
         with:
@@ -150,6 +186,7 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch,enable=${{ github.ref != 'refs/heads/main' }}
+            type=raw,value=${{ steps.ver.outputs.version }},enable=${{ inputs.version_from_base && github.ref == 'refs/heads/main' }}
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6.19.2
         with:
           context: ${{ matrix.context }}

@@ -62,6 +62,8 @@ Then delete the project's old `docker.yml` / standalone `pytest.yml`.
 | `cache_paths` | `''` | optional extra paths cached in the `test` job (one per line), e.g. `~/.cache/ms-playwright` for browser tests |
 | `cache_key_files` | `uv.lock` | glob(s) whose hash keys that cache |
 | `extra_branches` | `''` | optional comma-separated branches (no spaces) that also publish on push, tagged `:<branch>` (never `:latest`); e.g. `dev` for a dev environment. The caller's `on.push.branches` must list them too |
+| `version_from_base` | `false` | overlay images: also tag main builds with the upstream version from the Dockerfile's `ARG BASE=<image>:<tag>` (leading `v` dropped: `foo:v1.3.5` → `:1.3.5`), so an update checker can compare the overlay with newer upstream releases. Fails the build if `ARG BASE` has no numeric tag |
+| `build_on_pr` | `false` | also `docker build` (no push) in the `test` job, so a PR that breaks the Dockerfile — e.g. an overlay patch that no longer applies to a new base — goes red before merge, not after |
 
 The build also passes `GIT_SHA=<commit>` as a Docker build argument. A Dockerfile that declares `ARG GIT_SHA` can bake it in (e.g. `ENV APP_BUILD=$GIT_SHA`) and report it from a health endpoint, so a post-deploy check can wait for exactly that build instead of guessing. Dockerfiles that don't declare it just get a BuildKit warning.
 
